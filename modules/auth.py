@@ -69,3 +69,40 @@ def login_user(phone, password):
 
 
 
+def handle_reg():
+    while True:
+        name = input("Enter Your name: ")
+        if not name:
+            print("Name cannot be empty")
+            continue
+        if not all(part.isalpha() for part in name.split()):
+            print("Name should contain only alphabets and spaces")
+            continue
+
+        break
+
+    while True:
+        
+        phone = input("Enter your phone number: ")
+        if not phone.isdigit():
+            print("Only digits allowed")
+            continue  
+        if len(phone)!= 11:
+            print("Phone can only have 11 numbers")
+        break
+        
+
+    while True:
+        
+        password = input("Enter your password: ").strip()
+        if len(password) <8:
+            print("Password should be above 8 charachters")
+            continue
+        break
+
+    return name , phone , password      
+
+
+name, phone, password = handle_reg()
+result = register_form(name, phone, password)
+print(result)
