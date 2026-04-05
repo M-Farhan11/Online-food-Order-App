@@ -1,6 +1,12 @@
 from db import db_conn
 from models import user
 import hashlib
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+admin_id = os.getenv("admin")
+admin_pass = os.getenv("ad_pass")
 
 
 
@@ -144,6 +150,24 @@ def handle_login():
 
     return phone , password
 
+def admin_check():
+    while True:
+        admin = input("Enter Admin ID: ").strip()
+        if not admin:
+            print("Cannot be empty!")
+            continue
+
+        ad_pass = input("Enter Password: ").strip()
+        if not ad_pass:
+            print("Cannot be empty!")
+            continue
+        break
+
+    if admin != admin_id or ad_pass != admin_pass:
+        return {"status" : False , "message":"Wrong Id/pass"}
+    else:
+        return{"status" : True , "message":"Welcome! Logged in as Admin"}
+
 
 
 def main():
@@ -152,7 +176,8 @@ def main():
         
         print("1. For Login")
         print("2. For Register")
-        print("3. Exit")
+        print("3. For Admin")
+        print("4. For exit")
 
         
         choice = input("\nEnter your choice: ")
@@ -187,6 +212,11 @@ def main():
    
 
         if choice == "3":
+           result = admin_check()
+           print(result["message"])
+            
+
+        if choice == "4":
             exit()
             break
 
