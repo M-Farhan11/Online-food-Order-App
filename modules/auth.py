@@ -88,7 +88,11 @@ def login_user(phone, password):
 
 def handle_reg():
     while True:
+<<<<<<< HEAD
+        name = input("Enter Your name: ")
+=======
         name = input("Enter Your name: ").strip()
+>>>>>>> d9bf6c013eb25f9492ab7f388ea2cfd98c2796dd
         if not name:
             print("Name cannot be empty")
             continue
@@ -100,13 +104,20 @@ def handle_reg():
 
     while True:
         
+<<<<<<< HEAD
+        phone = input("Enter your phone number: ")
+=======
         phone = input("Enter your phone number: ").strip()
+>>>>>>> d9bf6c013eb25f9492ab7f388ea2cfd98c2796dd
         if not phone.isdigit():
             print("Only digits allowed")
             continue  
         if len(phone)!= 11:
             print("Phone can only have 11 numbers")
+<<<<<<< HEAD
+=======
             continue
+>>>>>>> d9bf6c013eb25f9492ab7f388ea2cfd98c2796dd
         break
         
 
@@ -120,6 +131,12 @@ def handle_reg():
 
     return name , phone , password      
 
+<<<<<<< HEAD
+
+name, phone, password = handle_reg()
+result = register_form(name, phone, password)
+print(result)
+=======
 def handle_login():
     while True:
         
@@ -225,3 +242,4 @@ if __name__ == "__main__":
     main()
 
 #python -m modules.auth    
+>>>>>>> d9bf6c013eb25f9492ab7f388ea2cfd98c2796dd
