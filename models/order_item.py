@@ -1,7 +1,7 @@
 class OrderItem:
-
-    def __init__(self, id, order_id, item_id, quantity):
-        self.id = id
-        self.order_id = order_id
+    def __init__(self, item_id, name, category, price):
         self.item_id = item_id
-        self.quantity = quantity
+        self.name = name
+        self.category = category
+        self.price = price
+        self.available = True
