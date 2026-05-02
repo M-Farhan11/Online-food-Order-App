@@ -1,42 +1,16 @@
-from modules.auth import register_form, login_user
+from modules.tracking import add_order, process_orders, track_order
+import time
+from db import db_conn
+import mysql.connector
+order_id = int(input("Enter Order ID: "))
 
-def main():
+print(add_order(order_id))
 
-    while True:
-        print("\n--- Online Food App Auth ---")
-        print("1. Register")
-        print("2. Login")
-        print("3. Exit")
+for i in range(4):
+    msg = add_order(order_id)
 
-        choice = input("Enter choice: ")
-
-        if choice == "1":
-            name = input("Enter name: ")
-            phone = input("Enter phone: ")
-            password = input("Enter password: ")
-
-            msg = register_form(name, phone, password)
-            print(msg)
-
-        elif choice == "2":
-            phone = input("Enter phone: ")
-            password = input("Enter password: ")
-
-            user, msg = login_user(phone, password)
-
-            if user:
-                print(f"Welcome {user['name']}")
-                print("User ID:", user["user_id"])
-            else:
-                print(msg)
-
-        elif choice == "3":
-            print("Exiting...")
-            break
-
-        else:
-            print("Invalid choice")
-
-
-main()
-
+    if "Invalid" in msg:
+        exit()
+    time.sleep(3)
+    process_orders()
+    print(track_order(order_id))
