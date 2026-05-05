@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 passw = os.getenv("db_pass")
+host = os.getenv("db_host")
+user = os.getenv("db_user")
+db_name = os.getenv("db_name")
 
 if passw is None:
     print("No password Found!")
@@ -12,10 +15,10 @@ if passw is None:
 db_pool = pooling.MySQLConnectionPool(
     pool_name="onlinefood",
     pool_size=10,
-    host="localhost",
-    user="root",
+    host=host,
+    user=user,
     password=passw,
-    database="online_food_app"
+    database=db_name
 )
 
 def db_conn():
