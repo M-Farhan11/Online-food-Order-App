@@ -105,6 +105,26 @@ def set_item_availability(item_id, available: bool):
         menu[item_id].available = available
 
 
+def update_item_price(item_id, new_price):
+    """Update item price. Only affects future orders (snapshots protect old orders)."""
+    conn   = db_conn()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE menu_items SET price = %s WHERE item_id = %s",
+        (new_price, item_id)
+    )
+    conn.commit()
+    cursor.close(); conn.close()
+
+    if item_id in menu:
+        menu[item_id].price = new_price
+
+
+def load_all_menu_items():
+    """Load all menu items including unavailable ones. Used by admin panel."""
+    load_menu_from_db(include_unavailable=True)
+
+
 # ═══════════════════════════════════════════════════════
 # MENU DISPLAY (CLI)
 # ═══════════════════════════════════════════════════════

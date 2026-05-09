@@ -2,17 +2,17 @@
 # Shared theme constants — KFC-inspired dark red + black
 
 COLORS = {
-    "bg":           "#0A0A0A",   # near-black background
-    "bg_card":      "#161616",   # card / panel background
-    "bg_input":     "#1E1E1E",   # input field background
-    "bg_sidebar":   "#111111",   # sidebar / cart panel
-    "red":          "#C8102E",   # KFC red — primary accent
-    "red_hover":    "#E8192E",   # lighter red on hover
-    "red_dark":     "#9B0B20",   # darker red for pressed
+    "bg":           "#0A0A0A",
+    "bg_card":      "#161616",
+    "bg_input":     "#1E1E1E",
+    "bg_sidebar":   "#111111",
+    "red":          "#C8102E",
+    "red_hover":    "#E8192E",
+    "red_dark":     "#9B0B20",
     "white":        "#FFFFFF",
-    "off_white":    "#F0EDE8",   # warm off-white for body text
-    "muted":        "#888888",   # muted/secondary text
-    "border":       "#2A2A2A",   # subtle borders
+    "off_white":    "#F0EDE8",
+    "muted":        "#888888",
+    "border":       "#2A2A2A",
     "success":      "#2ECC71",
     "warning":      "#F39C12",
 }
@@ -38,8 +38,10 @@ PADDING = {
 }
 
 STATUS_COLORS = {
-    "Placed":            "#F39C12",
-    "Preparing":         "#3498DB",
-    "Out for Delivery":  "#9B59B6",
-    "Delivered":         "#2ECC71",
+    "Placed":            "#F39C12",   # amber
+    "Payment Pending":   "#8E44AD",   # purple — online payment awaiting admin
+    "Preparing":         "#3498DB",   # blue
+    "Out for Delivery":  "#1ABC9C",   # teal
+    "Delivered":         "#2ECC71",   # green
+    "Cancelled":         "#E74C3C",   # red
 }

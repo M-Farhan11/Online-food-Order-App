@@ -17,19 +17,18 @@ STATUS_FLOW = [
 ]
 
 _auto_timers = {}
-_timer_lock = threading.Lock()
+_timer_lock  = threading.Lock()
 
 
 # ═══════════════════════════════════════════════════════
-# DB HELPERS  —  fast single-column queries
+# DB HELPERS
 # ═══════════════════════════════════════════════════════
 
 def _get_order(order_id: int) -> dict | None:
-    """Returns full order row as dict, or None if not found."""
     conn   = db_conn()
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
-        "SELECT order_id, user_id, status, created_at "
+        "SELECT order_id, user_id, status, payment_method, created_at "
         "FROM orders WHERE order_id = %s",
         (order_id,)
     )
@@ -39,7 +38,6 @@ def _get_order(order_id: int) -> dict | None:
 
 
 def _get_status(order_id: int) -> str | None:
-    """Returns just the status string. Faster than fetching full row."""
     conn   = db_conn()
     cursor = conn.cursor()
     cursor.execute(
@@ -61,11 +59,16 @@ def _set_status(order_id: int, new_status: str):
     cursor.close(); conn.close()
 
 
+# ═══════════════════════════════════════════════════════
+# AUTO-TIMER  (background status progression)
+# ═══════════════════════════════════════════════════════
+
 def _schedule_auto_update(order_id: int):
     with _timer_lock:
         if order_id in _auto_timers:
             return
-        timer = threading.Timer(10.0, _auto_update_status, args=(order_id,))
+        timer = threading.Timer(
+            10.0, _auto_update_status, args=(order_id,))
         timer.daemon = True
         _auto_timers[order_id] = timer
         timer.start()
@@ -103,34 +106,26 @@ def _auto_update_status(order_id: int):
 # ═══════════════════════════════════════════════════════
 
 def add_order_to_queue(order_id: int) -> str:
-    """
-    Validates order exists and is not Delivered, then enqueues it.
-    """
     order = _get_order(order_id)
     if not order:
-        return f"  Order #{order_id} not found."
+        return f"Order #{order_id} not found."
     if order["status"] == "Delivered":
-        return f"  Order #{order_id} is already delivered."
+        return f"Order #{order_id} is already delivered."
     if order_id in order_queue:
-        return f"  Order #{order_id} is already in the queue."
-
-    order_queue.append(order_id)    # enqueue
-    return f"  Order #{order_id} added to tracking queue."
+        return f"Order #{order_id} is already in the queue."
+    order_queue.append(order_id)
+    return f"Order #{order_id} added to tracking queue."
 
 
 def process_next_order() -> str:
-    """
-    Dequeues the front order, advances its status by one step.
-    If not yet Delivered, re-enqueues it at the back.
-    """
     if not order_queue:
-        return "  No orders in queue."
+        return "No orders in queue."
 
-    order_id = order_queue.popleft()    # dequeue
+    order_id = order_queue.popleft()
+    current  = _get_status(order_id)
 
-    current = _get_status(order_id)
     if current is None:
-        return f"  Order #{order_id} no longer exists in DB."
+        return f"Order #{order_id} no longer exists in DB."
 
     try:
         idx = STATUS_FLOW.index(current)
@@ -140,31 +135,40 @@ def process_next_order() -> str:
     if idx < len(STATUS_FLOW) - 1:
         new_status = STATUS_FLOW[idx + 1]
         _set_status(order_id, new_status)
-        msg = f"  Order #{order_id}: {current} → {new_status}"
+        msg = f"Order #{order_id}: {current} → {new_status}"
     else:
         new_status = current
-        msg = f"  Order #{order_id} is already Delivered."
+        msg = f"Order #{order_id} is already Delivered."
 
-    # Re-enqueue only if not yet delivered
     if new_status != "Delivered":
         order_queue.append(order_id)
 
     return msg
 
 
+# ═══════════════════════════════════════════════════════
+# ADMIN ORDER MANAGEMENT
+# ═══════════════════════════════════════════════════════
+
 def get_orders_by_status(status: str | None = None) -> list:
+    """
+    Returns list of order dicts.
+    Pass None to get ALL orders regardless of status.
+    """
     conn   = db_conn()
     cursor = conn.cursor(dictionary=True)
     if status is None:
         cursor.execute(
-            "SELECT order_id, user_id, total_amount, status, payment_method, created_at "
-            "FROM orders ORDER BY created_at DESC, order_id DESC"
+            "SELECT order_id, user_id, total_amount, status, "
+            "payment_method, created_at "
+            "FROM orders ORDER BY created_at DESC"
         )
     else:
         cursor.execute(
-            "SELECT order_id, user_id, total_amount, status, payment_method, created_at "
+            "SELECT order_id, user_id, total_amount, status, "
+            "payment_method, created_at "
             "FROM orders WHERE status = %s "
-            "ORDER BY created_at DESC, order_id DESC",
+            "ORDER BY created_at DESC",
             (status,)
         )
     rows = cursor.fetchall()
@@ -173,17 +177,41 @@ def get_orders_by_status(status: str | None = None) -> list:
 
 
 def confirm_order(order_id: int) -> str:
+    """
+    Admin confirms an order.
+
+    Accepted from statuses:
+      - "Placed"          → Cash on Delivery order waiting to start
+      - "Payment Pending" → Online order whose payment details have been
+                            verified by admin; payment is NEVER declined
+                            (semester project model — we assume payment valid)
+
+    In both cases the order moves to "Preparing" and the auto-timer starts
+    to progress it through Out for Delivery → Delivered automatically.
+    """
     order = _get_order(order_id)
     if not order:
         return f"Order #{order_id} not found."
-    if order["status"] != "Placed":
-        return f"Order #{order_id} cannot be confirmed from status '{order['status']}'."
+
+    confirmable = ("Placed", "Payment Pending")
+    if order["status"] not in confirmable:
+        return (f"Order #{order_id} cannot be confirmed from "
+                f"status '{order['status']}'.")
+
     _set_status(order_id, "Preparing")
-    _schedule_auto_update(order_id)
+    _schedule_auto_update(order_id)    # starts 10-second progression timer
+
+    if order["status"] == "Payment Pending":
+        return (f"Order #{order_id} — online payment verified. "
+                f"Status set to Preparing.")
     return f"Order #{order_id} confirmed. Status set to Preparing."
 
 
 def cancel_order(order_id: int) -> str:
+    """
+    Admin cancels an order.
+    Cannot cancel orders that are already Delivered or already Cancelled.
+    """
     order = _get_order(order_id)
     if not order:
         return f"Order #{order_id} not found."
@@ -191,31 +219,26 @@ def cancel_order(order_id: int) -> str:
         return f"Order #{order_id} is already Delivered and cannot be cancelled."
     if order["status"] == "Cancelled":
         return f"Order #{order_id} is already cancelled."
+
     _cancel_auto_update(order_id)
     _set_status(order_id, "Cancelled")
     return f"Order #{order_id} has been cancelled."
 
 
 # ═══════════════════════════════════════════════════════
-# TRACK  —  customer-facing lookup (linear search in queue)
+# CUSTOMER TRACKING
 # ═══════════════════════════════════════════════════════
 
 def track_order(order_id: int) -> str:
-    """
-    Returns current status from DB.
-    Also shows whether the order is actively in the queue.
-    """
     status = _get_status(order_id)
     if status is None:
-        return f"  Order #{order_id} not found."
-
-    in_queue = order_id in order_queue  # linear search through deque
-    queue_note = "  (currently in processing queue)" if in_queue else ""
-    return f"  Order #{order_id} — Status: {status}{queue_note}"
+        return f"Order #{order_id} not found."
+    in_queue   = order_id in order_queue   # linear search through deque (DSA)
+    queue_note = " (in processing queue)" if in_queue else ""
+    return f"Order #{order_id} — Status: {status}{queue_note}"
 
 
 def get_queue_snapshot() -> list:
-    """Returns a copy of current queue as a list (for display)."""
     return list(order_queue)
 
 
@@ -224,12 +247,10 @@ def get_queue_snapshot() -> list:
 # ═══════════════════════════════════════════════════════
 
 def customer_tracking_menu(user):
-    """Customer can track their own orders."""
     while True:
         print("\n  ── Order Tracking ──")
         print("  1. Track an order by ID")
         print("  2. Back")
-
         choice = input("\n  Choice: ").strip()
 
         if choice == "1":
@@ -237,8 +258,6 @@ def customer_tracking_menu(user):
                 order_id = int(input("  Enter Order ID: ").strip())
             except ValueError:
                 print("  Invalid ID."); continue
-
-            # Verify this order belongs to this user
             order = _get_order(order_id)
             if not order:
                 print(f"  Order #{order_id} not found.")
@@ -254,43 +273,46 @@ def customer_tracking_menu(user):
 
 
 def admin_tracking_menu():
-    """Admin can manage the processing queue."""
     while True:
         print("\n  ── Admin: Order Tracking ──")
         print("  1. Add order to queue")
         print("  2. Process next order (advance status)")
         print("  3. View queue")
         print("  4. Track specific order")
-        print("  5. Back")
-
+        print("  5. Confirm order (Placed / Payment Pending → Preparing)")
+        print("  6. Cancel order")
+        print("  7. Back")
         choice = input("\n  Choice: ").strip()
 
         if choice == "1":
-            try:
-                order_id = int(input("  Order ID: ").strip())
-            except ValueError:
-                print("  Invalid ID."); continue
+            try: order_id = int(input("  Order ID: ").strip())
+            except ValueError: print("  Invalid ID."); continue
             print(add_order_to_queue(order_id))
 
         elif choice == "2":
             print(process_next_order())
 
         elif choice == "3":
-            snapshot = get_queue_snapshot()
-            if not snapshot:
-                print("  Queue is empty.")
-            else:
-                print(f"  Queue ({len(snapshot)} orders): ", end="")
-                print(" → ".join(f"#{oid}" for oid in snapshot))
+            snap = get_queue_snapshot()
+            if not snap: print("  Queue is empty.")
+            else: print("  Queue: " + " → ".join(f"#{i}" for i in snap))
 
         elif choice == "4":
-            try:
-                order_id = int(input("  Order ID: ").strip())
-            except ValueError:
-                print("  Invalid ID."); continue
+            try: order_id = int(input("  Order ID: ").strip())
+            except ValueError: print("  Invalid ID."); continue
             print(track_order(order_id))
 
         elif choice == "5":
+            try: order_id = int(input("  Order ID: ").strip())
+            except ValueError: print("  Invalid ID."); continue
+            print(confirm_order(order_id))
+
+        elif choice == "6":
+            try: order_id = int(input("  Order ID: ").strip())
+            except ValueError: print("  Invalid ID."); continue
+            print(cancel_order(order_id))
+
+        elif choice == "7":
             break
         else:
             print("  Invalid choice.")

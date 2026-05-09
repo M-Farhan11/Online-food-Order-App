@@ -54,20 +54,24 @@ history_dll = OrderHistoryDLL()
 def insert_order(user_id: int, total: float, method: str) -> Order:
     """
     Inserts a row into orders table.
+    Online Payment orders start as 'Payment Pending' (awaiting admin confirmation).
+    Cash orders start as 'Placed'.
     Returns an Order object with the new order_id.
     """
     conn   = db_conn()
     cursor = conn.cursor()
+    # Online orders are "Payment Pending" until admin confirms. Cash orders are "Placed".
+    status = "Payment Pending" if method == "Online Payment" else "Placed"
     cursor.execute(
         "INSERT INTO orders (user_id, total_amount, status, payment_method) "
-        "VALUES (%s, %s, 'Placed', %s)",
-        (user_id, total, method)
+        "VALUES (%s, %s, %s, %s)",
+        (user_id, total, status, method)
     )
     conn.commit()
     new_id = cursor.lastrowid
     cursor.close(); conn.close()
 
-    return Order(new_id, user_id, total, "Placed", method)
+    return Order(new_id, user_id, total, status, method)
 
 
 def insert_order_items(order_id: int, cart: list):
